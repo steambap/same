@@ -74,6 +74,8 @@ class InGame {
 			const posX = e.x - this.tileGroup.x;
 			const posY = e.y - this.tileGroup.y;
 
+			// be careful, mouse x determine which column are we in
+			// while mouse y position is row index
 			const pickedRow = Math.floor(posY / opts.tileSize);
 			const pickedCol = Math.floor(posX / opts.tileSize);
 
@@ -100,6 +102,8 @@ class InGame {
 	}
 
 	destroyTiles(tileList) {
+		this.canPick = false;
+
 		tileList.forEach(point => {
 			const tile = this.tilesArray[point.x][point.y];
 			const tween = this.game.add.tween(tile.tileSprite).to({
@@ -107,9 +111,7 @@ class InGame {
 			}, 300, Phaser.Easing.Linear.None, true);
 
 			this.tilePool.push(tile.tileSprite);
-			tween.onComplete.add(e => {
-				// fill vertical holes
-			});
+			tween.onComplete.add(this.fillHoles, this);
 
 			tile.isEmpty = true;
 		});
@@ -139,6 +141,106 @@ class InGame {
 	// check for phaser point in array
 	pointInArr(arr, point) {
 		return arr.some(myPoint => myPoint.equals(point));
+	}
+
+	fillHoles() {
+		// on complete will be called before the last
+		// tween object is destroyed
+		if (this.game.tweens.getAll().length > 1) {
+			return;
+		}
+		
+		this.fillVertical();
+	}
+
+	fillVertical() {
+		for (let j = 0; j < opts.cols; j++) {
+			for (let i = opts.rows - 2; i >= 0; i--) {
+				if (!this.tilesArray[i][j].isEmpty) {
+					const holes = this.countSpacesBelow(i, j);
+
+					if (holes > 0) {
+						this.moveDownTile(i, j, i + holes, true)
+							.onComplete.add(this.finishFill, this);
+					}
+				}
+			}
+		}
+
+		for (let j = 0; j < opts.cols; j++) {
+			const holes = this.countSpacesBelow(-1, j);
+
+			for (let i = holes - 1; i >= 0; i--) {
+				this.refillTile(i, j, holes)
+					.onComplete.add(this.finishFill, this);
+			}
+		}
+	}
+
+	refillTile(i, j, holes) {
+		const tileFromPool = this.tilePool.pop();
+		tileFromPool.alpha = 1;
+		tileFromPool.x = (j + 1 / 2) * opts.tileSize;
+		tileFromPool.y = (i - holes + 1 / 2) * opts.tileSize;
+
+		const colorIndex = this.game.rnd.integerInRange(0, opts.colors.length - 1);
+
+		tileFromPool.tint = opts.colors[colorIndex];
+
+		this.tilesArray[i][j] = {
+			tileSprite: tileFromPool,
+			isEmpty: false,
+			coordinate: new Point(i, j),
+			tint: tileFromPool.tint
+		};
+
+		return this.moveDownTile(0, j, i, false);
+	}
+
+	// how many empty tiles below ?
+	countSpacesBelow(row, col) {
+		let spaces = 0;
+		for (let i = row + 1; i < opts.rows; i++) {
+			if (this.tilesArray[i][col].isEmpty) {
+				spaces += 1;
+			}
+		}
+
+		return spaces;
+	}
+
+	moveDownTile(fromRow, fromCol, toRow, drop) {
+		if (drop) {
+			this.dropTile(fromRow, fromCol, toRow, drop);
+		}
+
+		const height = (toRow - fromRow) * opts.tileSize;
+
+		const sprite = this.tilesArray[toRow][fromCol].tileSprite;
+		return this.game.add.tween(sprite).to({
+			y: (toRow + 1 / 2) * opts.tileSize
+		}, height / 2, Phaser.Easing.Linear.None, true);
+	}
+
+	dropTile(fromRow, fromCol, toRow, drop) {
+		const theTile = this.tilesArray[fromRow][fromCol].tileSprite;
+
+		this.tilesArray[toRow][fromCol] = {
+			tileSprite: theTile,
+			isEmpty: false,
+			coordinate: new Phaser.Point(toRow, fromCol),
+			tint: theTile.tint
+		};
+
+		this.tilesArray[fromRow][fromCol].isEmpty = true;
+	}
+
+	finishFill() {
+		if (this.game.tweens.getAll().length > 1) {
+			return;
+		}
+
+		this.canPick = true;
 	}
 }
 
