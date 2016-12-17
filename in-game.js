@@ -7,12 +7,17 @@ class InGame {
 		this.tilesArray = [];
 		this.tileGroup = null;
 		this.tilePool = [];
+
+		this.validWav = null;
+		this.invalidWav = null;
 	}
 
 	preload() {
 		const {game} = this;
-		game.stage.backgroundColor = 0x222222;
-		game.load.image('tiles', './tile.png');
+		game.stage.backgroundColor = 0x353535;
+		game.load.image('tiles', './tile.png')
+			.audio('valid', 'valid.wav')
+			.audio('invalid', 'invalid.wav');
 	}
 
 	create() {
@@ -21,6 +26,9 @@ class InGame {
 
 		game.scale.pageAlignHorizontally = true;
 		game.scale.pageAlignVertically = true;
+
+		this.validWav = game.add.audio('valid', 0.5, false);
+		this.invalidWav = game.add.audio('invalid', 0.5, false);
 
 		this.createLv();
 	}
@@ -70,6 +78,7 @@ class InGame {
 	}
 
 	pickTile(e) {
+		let validPick = false;
 		if (this.canPick) {
 			const posX = e.x - this.tileGroup.x;
 			const posY = e.y - this.tileGroup.y;
@@ -82,9 +91,11 @@ class InGame {
 			if (this.isValidTile(pickedRow, pickedCol)) {
 				const pickedTile = this.tilesArray[pickedRow][pickedCol];
 
-				return this.tryPick(pickedTile);
+				validPick = this.tryPick(pickedTile);
 			}
 		}
+
+		validPick ? this.validWav.play() : this.invalidWav.play();
 	}
 
 	isValidTile(row, col) {
@@ -98,7 +109,11 @@ class InGame {
 
 		if (fill.length > 2) {
 			this.destroyTiles(fill);
+
+			return true;
 		}
+
+		return false;
 	}
 
 	destroyTiles(tileList) {
@@ -194,7 +209,7 @@ class InGame {
 			tint: tileFromPool.tint
 		};
 
-		return this.moveDownTile(0, j, i, false);
+		return this.moveDownTile(i - holes, j, i, false);
 	}
 
 	// how many empty tiles below ?
